@@ -67,6 +67,23 @@ python export_history.py --since week
 - 轮询机制下消息量瞬时爆发（超过 `tail_size`）可能丢个别消息
 - 长期挂机建议关闭 Windows 自动睡眠、微信保持登录；掉线后重启脚本即可，中间漏掉的消息可用 `export_history.py` 回补
 
+## 本地增强（2026-11-21，基于微信 4.1.8.28 实测调通）
+
+在原 collector 之上新增了三个常驻组件和一键脚本，`start.bat` 全部拉起：
+
+| 组件 | 作用 |
+|---|---|
+| `collector.py` | 原消息采集；`setup_logging` 改为根 logger 统一格式（wx4py 日志并入 `logs/collector.log` 与控制台） |
+| `file_clicker.py` | 发现"文件 X 未下载"消息后，自动右键气泡点菜单"下载"（静默下载，不打开文件） |
+| `file_fetcher.py` | 监视微信文件目录 `xwechat_files/<wxid>/msg/file/<yyyy-mm>/`，新文件自动复制到 `data/files/<yyyy-mm>/` 并写 `files-index-<日期>.jsonl`（config.json 的 `wechat_file_dir` 可指定路径） |
+| `voice_transcriber.py` | 兜底组件：语音先被抓到占位、转写后到的情况，延迟回读气泡补记到 `data/voice-transcripts-<日期>.jsonl` |
+
+脚本：`start.bat`（讲述人→重启微信→拉起全部组件，详见 `start-collector.ps1`）、`stop.bat`、`check.bat`（自检五项+最后消息时间）。
+
+**关键运行条件**：微信必须是 4.1.8.28，且启动瞬间需讲述人在运行（`start.bat` 已自动处理）；4.1.9+/4.2 对讲述人触发 UIA 树免疫。
+
+**wx4py 补丁**：上游 0.2.1 有两个会导致"静默丢消息"的 bug，已直接修改 venv 内源码修复，详见 [`patches/README.md`](patches/README.md)（含 diff 与完整文件，供 fork wx4py 时提交上游）。注意：`pip/uv` 重装 wx4py 会冲掉补丁。
+
 ## 风险提示
 
 wx4py 通过 UI 自动化操作微信客户端，属于非官方用法，存在账号风控风险。建议使用非重要账号，并遵守相关法律法规。

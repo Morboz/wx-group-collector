@@ -53,11 +53,15 @@ def load_config(path: Path) -> dict:
 def setup_logging(log_dir: Path, verbose: bool) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+
+    # 统一配置根 logger:collector 与 wx4py 等库的日志走同一格式、同一输出
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG if verbose else logging.INFO)
+    root.handlers.clear()
 
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
-    logger.addHandler(sh)
+    root.addHandler(sh)
 
     fh = RotatingFileHandler(
         log_dir / "collector.log",
@@ -66,7 +70,14 @@ def setup_logging(log_dir: Path, verbose: bool) -> None:
         encoding="utf-8",
     )
     fh.setFormatter(fmt)
-    logger.addHandler(fh)
+    root.addHandler(fh)
+
+    # 摘掉 wx4py 各自挂的 handler 并恢复冒泡(它默认 propagate=False),
+    # 让其记录统一走根 logger 的格式与输出
+    for name, lg in list(logging.root.manager.loggerDict.items()):
+        if name.startswith("wx4py") and isinstance(lg, logging.Logger):
+            lg.handlers = []
+            lg.propagate = True
 
 
 class JsonlWriter:

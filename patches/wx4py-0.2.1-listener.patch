@@ -1,0 +1,112 @@
+--- a/wx4py/features/messaging/listener.py
++++ b/wx4py/features/messaging/listener.py
+@@ -38,6 +38,8 @@
+ MESSAGE_CLASSES = {
+     "mmui::ChatTextItemView",
+     "mmui::ChatBubbleItemView",
++    # 补丁:带转写的语音气泡是独立类,不在白名单会被静默丢弃
++    "mmui::ChatVoiceItemView",
+ }
+ TIME_CLASS = "mmui::ChatItemView"
+ 
+@@ -77,6 +79,9 @@
+     new_count: int = 0
+     scan_count: int = 0
+     fail_count: int = 0
++    empty_count: int = 0
++    last_reacquire_at: float = 0.0
++    emitted_names: dict = field(default_factory=dict)
+     last_message_at: float = field(default_factory=time.time)
+     next_scan_at: float = field(default_factory=time.time)
+     interval: float = 0.3
+@@ -450,6 +455,7 @@
+                 root=root,
+                 msg_list=msg_list,
+                 seen={item.key for item in baseline},
++                emitted_names={(item.class_name, item.name): time.time() for item in baseline},
+             )
+ 
+     def _read_group_nickname(self, group: str) -> bool:
+@@ -518,8 +524,57 @@
+         sessions.sort(key=lambda session: session.next_scan_at)
+         return sessions[:self.batch_size]
+ 
++    def _reacquire_msg_list(self, session: _ListenSession) -> None:
++        """重建消息列表控件引用(定时强制刷新)。
++
++        补丁:微信重渲染消息列表(如语音转写到达)会使已缓存的 msg_list COM 引用
++        "冻结"——读到的永远是断开前的旧快照,非空但永不更新,读空检测防不住。
++        此方法每 20 秒强制重新定位列表;运行时键没见过、连(类名+文本)也没上报过的
++        条目视为冻结期间漏掉的,补报一次;名字级去重防止重渲染后旧消息重复上报。
++        """
++        session.empty_count = 0
++        session.fail_count = 0
++        session.last_reacquire_at = time.time()
++        try:
++            root = uia.ControlFromHandle(session.hwnd)
++            if root is None:
++                logger.warning(f"刷新消息列表失败(窗口不可用): {session.group}")
++                return
++            msg_list = _find_message_list(root)
++            if msg_list is None:
++                logger.warning(f"刷新消息列表失败(未找到列表控件): {session.group}")
++                return
++            session.root = root
++            session.msg_list = msg_list
++
++            recovered = 0
++            for item in _read_visible_items(msg_list):
++                if item.key in session.seen:
++                    continue
++                session.seen.add(item.key)
++                if item.kind != "message":
++                    continue
++                name_key = (item.class_name, item.name)
++                if name_key in session.emitted_names:
++                    continue
++                if self.ignore_client_sent and self.outgoing_registry.should_ignore(session.group, item.name):
++                    continue
++                session.emitted_names[name_key] = time.time()
++                session.new_count += 1
++                recovered += 1
++                self._handle_message(session, item)
++            cutoff = time.time() - 1800
++            session.emitted_names = {k: t for k, t in session.emitted_names.items() if t > cutoff}
++            logger.info(f"已刷新消息列表引用: {session.group}" +
++                        (f"(补报 {recovered} 条)" if recovered else ""))
++        except Exception as exc:
++            logger.warning(f"刷新消息列表异常: {session.group}: {exc}")
++
+     def _poll_session(self, session: _ListenSession) -> None:
+         session.scan_count += 1
++        # 补丁:定时强制刷新引用,防"冻结引用"导致的静默停摆
++        if time.time() - session.last_reacquire_at >= 20:
++            self._reacquire_msg_list(session)
+         try:
+             items = _read_visible_items(session.msg_list)
+             if self.tail_size > 0:
+@@ -527,13 +582,24 @@
+         except Exception as exc:
+             session.fail_count += 1
+             logger.debug(f"读取群聊消息失败: {session.group}: {exc}")
++            if session.fail_count >= 5:
++                self._reacquire_msg_list(session)
+             return
+ 
++        # 补丁:健康窗口的可见消息列表永远非空;连续读空说明控件引用已断开
++        if not items:
++            session.empty_count += 1
++            if session.empty_count >= 5:
++                self._reacquire_msg_list(session)
++        else:
++            session.empty_count = 0
++
+         added = 0
+         for item in items:
+             if item.key in session.seen:
+                 continue
+             session.seen.add(item.key)
++            session.emitted_names[(item.class_name, item.name)] = time.time()
+             if item.kind != "message":
+                 continue
+             if self.ignore_client_sent and self.outgoing_registry.should_ignore(session.group, item.name):
