@@ -1,0 +1,12 @@
+# 本地配置（含真实群名）
+config.json
+
+# 采集到的数据和日志，不进仓库
+data/
+logs/
+
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.vscode/

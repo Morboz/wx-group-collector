@@ -1,0 +1,9 @@
+{
+    "groups": ["群名称1", "群名称2"],
+    "data_dir": "data",
+    "log_dir": "logs",
+    "tail_size": 32,
+    "tick": 0.1,
+    "batch_size": 8,
+    "log_each_message": true
+}
