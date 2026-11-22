@@ -1,6 +1,8 @@
 ﻿# 采集状态自检:进程、微信、群聊窗口、最近消息时间
 $dir = 'F:\dev\wx-group-collector'
-$grp = '参见大王'
+# 群名从 config.json 读取(支持多群时检查第一个)
+$cfg = Get-Content (Join-Path $dir 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$grp = @($cfg.groups)[0]
 $today = Get-Date -Format 'yyyy-MM-dd'
 $jsonl = Join-Path $dir "data\messages-$today.jsonl"
 
