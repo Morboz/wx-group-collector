@@ -40,6 +40,8 @@ MESSAGE_CLASSES = {
     "mmui::ChatBubbleItemView",
     # 补丁:带转写的语音气泡是独立类,不在白名单会被静默丢弃
     "mmui::ChatVoiceItemView",
+    # 补丁:图片气泡(以及引用类消息)也是独立类,同样会被静默丢弃
+    "mmui::ChatBubbleReferItemView",
 }
 TIME_CLASS = "mmui::ChatItemView"
 

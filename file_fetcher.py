@@ -51,7 +51,10 @@ def find_wechat_file_dir() -> Path | None:
 class FileFetcher:
     def __init__(self, wechat_dir: Path, files_dir: Path, index_dir: Path):
         self.wechat_dir = wechat_dir
+        # 图片存在 msg\attach\<会话哈希>\<yyyy-mm>\Img\*.dat(加密格式,自动下载)
+        self.attach_dir = wechat_dir.parent / "attach"
         self.files_dir = files_dir
+        self.images_dir = files_dir.parent / "images"
         self.index_dir = index_dir
         self.state_path = BASE_DIR / "data" / ".file_fetcher_state.json"
         # pending: path -> (size, 次数)
@@ -77,27 +80,40 @@ class FileFetcher:
 
     # ---------- 扫描 ----------
     def scan_wechat_dir(self) -> list[Path]:
-        """列出微信文件目录下的所有文件(跨所有月份子目录)。"""
+        """列出待归档文件:①文件目录所有月份 ②attach 下所有会话的原图 .dat。"""
         result = []
-        if not self.wechat_dir.exists():
-            return result
-        for month_dir in self.wechat_dir.iterdir():
-            if not month_dir.is_dir():
-                continue
-            try:
-                for entry in os.scandir(month_dir):
-                    if entry.is_file():
-                        result.append(Path(entry.path))
-            except OSError:
-                continue
+        if self.wechat_dir.exists():
+            for month_dir in self.wechat_dir.iterdir():
+                if not month_dir.is_dir():
+                    continue
+                try:
+                    for entry in os.scandir(month_dir):
+                        if entry.is_file():
+                            result.append(Path(entry.path))
+                except OSError:
+                    continue
+        # 图片:attach/<会话哈希>/<yyyy-mm>/Img/*.dat,排除 _t.dat 缩略图
+        if self.attach_dir.exists():
+            for dat in self.attach_dir.glob("*/*/Img/*.dat"):
+                if dat.name.endswith("_t.dat"):
+                    continue
+                result.append(dat)
         return result
+
+    @staticmethod
+    def kind_of(src: Path) -> str:
+        return "image" if "Img" in src.parts else "file"
 
     # ---------- 复制与索引 ----------
     def copy_file(self, src: Path) -> Path | None:
-        month = src.parent.name  # yyyy-mm
-        dest_dir = self.files_dir / month
+        kind = self.kind_of(src)
+        # 文件:.../<yyyy-mm>/<名>; 图片:.../<哈希>/<yyyy-mm>/Img/<名>
+        month = src.parent.parent.name if kind == "image" else src.parent.name
+        dest_dir = (self.images_dir if kind == "image" else self.files_dir) / month
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / src.name
+        # 图片带会话哈希前缀防跨群重名
+        prefix = f"{src.parts[-4][:8]}_" if kind == "image" else ""
+        dest = dest_dir / f"{prefix}{src.name}"
         # 同名不同内容时加时间戳后缀,不覆盖
         if dest.exists():
             if dest.stat().st_size == src.stat().st_size:
@@ -117,6 +133,7 @@ class FileFetcher:
         rec = {
             "ts": now,
             "iso": datetime.fromtimestamp(now).astimezone().isoformat(timespec="milliseconds"),
+            "kind": self.kind_of(src),
             "name": src.name,
             "size": src.stat().st_size,
             "wechat_path": str(src),

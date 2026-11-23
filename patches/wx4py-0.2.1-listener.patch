@@ -1,15 +1,17 @@
 --- a/wx4py/features/messaging/listener.py
 +++ b/wx4py/features/messaging/listener.py
-@@ -38,6 +38,8 @@
+@@ -38,6 +38,10 @@
  MESSAGE_CLASSES = {
      "mmui::ChatTextItemView",
      "mmui::ChatBubbleItemView",
 +    # 补丁:带转写的语音气泡是独立类,不在白名单会被静默丢弃
 +    "mmui::ChatVoiceItemView",
++    # 补丁:图片气泡(以及引用类消息)也是独立类,同样会被静默丢弃
++    "mmui::ChatBubbleReferItemView",
  }
  TIME_CLASS = "mmui::ChatItemView"
  
-@@ -77,6 +79,9 @@
+@@ -77,6 +81,9 @@
      new_count: int = 0
      scan_count: int = 0
      fail_count: int = 0
@@ -19,7 +21,7 @@
      last_message_at: float = field(default_factory=time.time)
      next_scan_at: float = field(default_factory=time.time)
      interval: float = 0.3
-@@ -450,6 +455,7 @@
+@@ -450,6 +457,7 @@
                  root=root,
                  msg_list=msg_list,
                  seen={item.key for item in baseline},
@@ -27,7 +29,7 @@
              )
  
      def _read_group_nickname(self, group: str) -> bool:
-@@ -518,8 +524,57 @@
+@@ -518,8 +526,57 @@
          sessions.sort(key=lambda session: session.next_scan_at)
          return sessions[:self.batch_size]
  
@@ -85,7 +87,7 @@
          try:
              items = _read_visible_items(session.msg_list)
              if self.tail_size > 0:
-@@ -527,13 +582,24 @@
+@@ -527,13 +584,24 @@
          except Exception as exc:
              session.fail_count += 1
              logger.debug(f"读取群聊消息失败: {session.group}: {exc}")

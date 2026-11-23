@@ -11,13 +11,15 @@
 | `wx4py-0.2.1-listener.patch` | 与 PyPI 原版 0.2.1 的统一 diff(`git apply` 可用) |
 | `wx4py-listener.py` | 打满补丁的完整文件(直接对照/拷贝用) |
 
-## 补丁一:MESSAGE_CLASSES 增加 ChatVoiceItemView(修静默丢语音)
+## 补丁一:MESSAGE_CLASSES 增加 ChatVoiceItemView / ChatBubbleReferItemView(修静默丢语音和图片)
 
-**现象**:开启微信"语音自动转文字"后,带转写的语音消息永远不会被监听到。
+**现象 A**:开启微信"语音自动转文字"后,带转写的语音消息永远不会被监听到。
+**现象 B(2026-11-23 发现)**:图片消息在消息流里完全隐形(连占位记录都没有)。
 
 **根因**:语音消息刚到达时气泡类是 `mmui::ChatBubbleItemView`(在白名单);
-转写文字几秒后到达,微信把气泡**重渲染为独立的 `mmui::ChatVoiceItemView`**,
-该类不在 `MESSAGE_CLASSES` 白名单里,被 `_read_visible_items` 的
+转写文字几秒后到达,微信把气泡**重渲染为独立的 `mmui::ChatVoiceItemView`**;
+图片气泡则是 `mmui::ChatBubbleReferItemView`(实测 Name 为"图片")。
+两个类都不在 `MESSAGE_CLASSES` 白名单里,被 `_read_visible_items` 的
 `else: continue` 静默丢弃。转写来得快时,监听器连旧形态的气泡都还没轮询到。
 
 **修复**:白名单加入 `"mmui::ChatVoiceItemView"`。修复后带转写的语音
