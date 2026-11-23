@@ -128,6 +128,36 @@ class FileFetcher:
             logger.exception("复制失败: %s", src)
             return None
 
+    def find_recent_image_message(self, before_ts: float, window: int = 900) -> str | None:
+        """在今天的消息流里找最近一条'图片'记录的 iso(供索引精确回链)。
+
+        图片消息与 .dat 落盘相差约 15~30 秒,取 before_ts 往前 window 秒内
+        最后一条 content=='图片' 的记录。只读,不改写消息文件。
+        """
+        path = self.index_dir / f"messages-{datetime.fromtimestamp(before_ts):%Y-%m-%d}.jsonl"
+        if not path.exists():
+            return None
+        best = None
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                lines = f.readlines()[-200:]  # 尾部足够覆盖时间窗
+            for line in lines:
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if rec.get("content") != "图片":
+                    continue
+                ts = rec.get("ts", 0)
+                if before_ts - window <= ts <= before_ts:
+                    if best is None or ts > best[0]:
+                        best = (ts, rec.get("iso", ""))
+        except OSError:
+            return None
+        if best is None:
+            return None
+        return best[1] or None
+
     def append_index(self, src: Path, dest: Path) -> None:
         now = time.time()
         rec = {
@@ -139,6 +169,11 @@ class FileFetcher:
             "wechat_path": str(src),
             "copied_to": str(dest),
         }
+        if rec["kind"] == "image":
+            # 精确回链:归档时间前最近一条'图片'消息的 iso
+            msg_iso = self.find_recent_image_message(now)
+            if msg_iso:
+                rec["msg_iso"] = msg_iso
         path = self.index_dir / f"files-index-{datetime.fromtimestamp(now):%Y-%m-%d}.jsonl"
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
