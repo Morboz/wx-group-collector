@@ -398,6 +398,46 @@ def main() -> None:
     RETRY_INTERVAL = 5.0
     pending: dict[str, tuple[dict, int, float]] = {}
 
+    def backfill_image_path(iso: str, png_path) -> None:
+        """把 image_path 回写进消息流对应记录,让每条图片消息自带文件路径。
+
+        collector 会向文件追加新行,整文件重写有丢行竞态;用"写前复核行数
+        不变才替换,否则重读重试"把窗口压到毫秒级。
+        """
+        now = datetime.now()
+        candidates = [data_dir / f"messages-{now:%Y-%m-%d}.jsonl"]
+        from datetime import timedelta
+        yesterday = now - timedelta(days=1)
+        candidates.append(data_dir / f"messages-{yesterday:%Y-%m-%d}.jsonl")
+        for mp in candidates:
+            if not mp.exists():
+                continue
+            for _ in range(5):
+                try:
+                    lines = mp.read_text(encoding="utf-8").splitlines()
+                    n0 = len(lines)
+                    out, hit = [], False
+                    for ln in lines:
+                        r = json.loads(ln)
+                        if (not hit and r.get("iso") == iso
+                                and r.get("content") == IMAGE_NAME
+                                and "image_path" not in r):
+                            r["image_path"] = str(png_path)
+                            hit = True
+                        out.append(json.dumps(r, ensure_ascii=False))
+                    if not hit:
+                        break  # 该记录不在此文件,换下一天
+                    tmp = mp.with_suffix(".tmp")
+                    tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+                    if len(mp.read_text(encoding="utf-8").splitlines()) == n0:
+                        tmp.replace(mp)
+                        logger.info("已回写 image_path 到消息记录: %s", iso)
+                        return
+                    # 行数变了(collector 刚追加),丢弃 tmp 重读重试
+                except Exception:
+                    pass
+                time.sleep(0.5)
+
     while True:
         for rec in tail.new_records():
             group = rec.get("group", "")
@@ -455,6 +495,7 @@ def main() -> None:
             processed[key] = str(out)
             save_state()
             pending.pop(key, None)
+            backfill_image_path(rec.get("iso", ""), out)
             logger.info("[%s] 图片已保存: %s (%dx%d)", group, out, size[0], size[1])
 
         if args.once:
