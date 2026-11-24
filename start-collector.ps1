@@ -43,6 +43,9 @@ Start-Process -FilePath $py -ArgumentList 'file_fetcher.py' `
 # 文件自动下载器:发现"文件 X 未下载"就右键点菜单"下载"
 Start-Process -FilePath $py -ArgumentList 'file_clicker.py' `
     -WorkingDirectory $dir -WindowStyle Hidden
+# 图片归档器:发现图片消息后右键复制,从剪贴板保存为 PNG
+Start-Process -FilePath $py -ArgumentList 'image_copier.py' `
+    -WorkingDirectory $dir -WindowStyle Hidden
 # 语音转写补录器:延迟回读语音气泡,把转写文字补记到 voice-transcripts-*.jsonl
 Start-Process -FilePath $py -ArgumentList 'voice_transcriber.py' `
     -WorkingDirectory $dir -WindowStyle Hidden

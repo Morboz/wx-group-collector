@@ -10,8 +10,9 @@
 |---|---|---|
 | `data/messages-YYYY-MM-DD.jsonl` | **主消息流**(必读) | 必读 |
 | `data/voice-transcripts-YYYY-MM-DD.jsonl` | 语音转写补录(兜底用) | 按需 |
-| `data/files-index-YYYY-MM-DD.jsonl` | 群文件搬运索引 | 按需 |
+| `data/files-index-YYYY-MM-DD.jsonl` | 群文件与图片归档索引 | 按需 |
 | `data/files/YYYY-MM/` | 群文件**本体**(xlsx/py 等) | 需要内容时 |
+| `data/images/decoded/YYYY-MM/` | 通过微信“复制”得到的**可读 PNG** | 视觉处理时优先使用 |
 | `logs/` | 运行日志 | 总结不需要 |
 
 所有 jsonl 均为 UTF-8,每行一个独立 JSON 对象,按写入顺序(≈时间序)追加。
@@ -41,7 +42,7 @@
 | **语音(带转写)** | `语音4"秒继续发语音，测试你刚才的修复。` | 前缀是 `语音N"秒`(N=时长秒),**后面全部是转写文字**,可直接当文本总结 |
 | 语音(无转写占位) | `[语音] 12"` | 只拿到占位;转写去 `voice-transcripts` 里按 `orig_iso` 找,找不到就没有 |
 | 文件 | `文件\nnodes.py\n微信电脑版` | 换行分隔。变体:`文件 X 未下载`(没下载成)、`文件 进度: 0% X 下载中`(下载瞬间)。**文件本体去 files-index 找** |
-| 图片 | content 为 `图片`(无方括号,**2026-11-23 起**才有记录,更早的图片消息无任何痕迹) | **原件已归档**:按时间就近查 ±1 天 files-index 里 `kind=="image"` 的条目(名字是哈希,不能按内容匹配名字),`copied_to` 指向 `data\images\<yyyy-mm>\` 的加密 .dat(微信 4.x 新加密,暂不可视)。历史补录记录自带 `image` 字段直指归档路径 |
+| 图片 | content 为 `图片`(无方括号,**2026-11-23 起**才有记录,更早的图片消息无任何痕迹) | 优先查 files-index 里带 `decoded_to` 的 clipboard 条目，指向 `data\images\decoded\<yyyy-mm>\` 的 PNG；同时保留 `kind=="image"` 的加密 `.dat` 原件。历史补录记录自带 `image` 字段直指归档路径 |
 | 视频/表情 | `[视频]` `[动画表情]` `[666]` | 只有占位文本,拿不到媒体 |
 | **合并转发** | `聊天记录群聊的聊天记录Shirlene: 可以问豆哥…\nOliviaPp: [动画表情]\nOliviaPp: 有个金融交易决策模型内测…` | 折叠**摘要**(通常只含前几条),非全量。注意:**这是全数据里唯一带发送者的地方**(内嵌 `昵称: 内容`) |
 | @消息 | `@马少骐 咱这是有体育相关的资源是吧` | @文本在 content 内;`is_at_me` 只标 @本机账号的 |
@@ -78,7 +79,8 @@
 - `kind`:**`file`(群文件,存 `data\files\<yyyy-mm>\`)或 `image`(图片原件,存 `data\images\<yyyy-mm>\`,文件名带会话哈希前缀防跨群重名)**。
 - 文件条目与"文件 X"消息按**文件名 + 就近时间**关联(跨 ±1 天查)。
 - **图片条目优先按 `msg_iso` 精确回链**消息流里的 `图片` 记录(归档时自动写入;无此字段时才退回时间就近匹配)。
-- `copied_to` 是本体路径;文件需要内容时直接读;图片是微信 4.x 新加密的 .dat,**暂不可视**(数据已保全,待解密方案)。
+- 加密原图条目的 `copied_to` 指向 `data\images\<yyyy-mm>\*.dat`，文件已保全但不可直接视读。
+- 图片复制组件生成的条目带 `source:"clipboard"`、`decoded_to`、`sha256`、`width`、`height`，`decoded_to` 指向 `data\images\decoded\<yyyy-mm>\*.png`；下游视觉处理优先读该路径。
 - 注意:文件只有被成功自动下载的才有索引;图片是微信自动下载的(通常都有)。
 
 ## 七、建议的总结流程
@@ -88,6 +90,6 @@
    - `语音N"秒...` → 剥前缀,取转写文字;
    - `[语音] N"` → 用 `orig_iso=iso` 查 voice-transcripts;
    - `文件...` → 按 `name` 查 files-index(kind=file),需要时读 `copied_to` 本体;
-   - `图片` → 按 kind=image + 时间就近查 files-index,报告附注"原图已归档(加密暂不可视)";
+   - `图片` → 优先按 `msg_iso` 查找带 `decoded_to` 的 clipboard 条目；若尚未复制成功，再回退到加密 `.dat` 条目并注明暂不可视;
    - 合并转发 → 保留 `昵称: ` 信息(唯一的人物信号);
 3. 建议输出:当日主题与讨论脉络 / 关键事项与待办 / @本账号的消息(is_at_me)/ 提及的文件清单 / (仅合并转发内可辨的)人物观点。

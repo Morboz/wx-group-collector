@@ -24,6 +24,11 @@ $k = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
 if ($k) { Write-Host '[OK] 文件自动下载器在运行(未下载文件自动右键下载)' }
 else    { Write-Host '[!] 文件自动下载器没在跑 —— 群文件需手动双击,重跑 start.bat' }
 
+$i = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+    Where-Object { $_.CommandLine -like '*image_copier*' }
+if ($i) { Write-Host '[OK] 图片归档器在运行(图片自动复制为 PNG)' }
+else    { Write-Host '[!] 图片归档器没在跑 —— 图片不会生成 PNG,重跑 start.bat' }
+
 $t = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
     Where-Object { $_.CommandLine -like '*voice_transcriber*' }
 if ($t) { Write-Host '[OK] 语音转写补录器在运行(转写补记到 voice-transcripts-*.jsonl)' }
