@@ -72,10 +72,19 @@ def setup_logging(verbose: bool) -> None:
 
 
 def find_group_window(group: str):
+    """按标题找群聊天窗口。
+
+    只认微信的 Qt 窗口类:标题含群名的浏览器/文档窗口(如飞书"xx群-日报")会
+    被 Z 序排前面,一旦误抓,右键复制就会点到别的应用上(2026-11-24 实测踩坑)。
+    """
     hits = []
 
     def callback(hwnd, _):
-        if win32gui.IsWindowVisible(hwnd) and group in (win32gui.GetWindowText(hwnd) or ""):
+        if not win32gui.IsWindowVisible(hwnd):
+            return
+        if group not in (win32gui.GetWindowText(hwnd) or ""):
+            return
+        if win32gui.GetClassName(hwnd) == "Qt51514QWindowIcon":
             hits.append(hwnd)
 
     win32gui.EnumWindows(callback, None)

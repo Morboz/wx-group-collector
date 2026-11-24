@@ -105,6 +105,15 @@ image_decoder.py 已删除(两解码器并存会抢鼠标、互相搞挂窗口,�
   C:\Users\xx\.agents\skills\wx-group-collector… 的 SKILL.md 与 DATA_GUIDE.md
 - 诊断工具:F:\dev\_probe\uia_probe.py(树体检,节点<5=没加载)、
   image_copy_v9.py(可用配方参考)、menu_watcher.py(人肉操作时抓 UIA 现场的技术)
+- **图片补收(2026-11-24 实战经验)**:工具在 F:\dev\_probe\copy_at.py(按屏幕坐标
+  对图片气泡右键复制)+ 截屏(PIL.ImageGrab→Read 看图)人工测坐标的闭环。
+  要点:①UIA 图片"行"矩形是全行宽,直接点行中心会落在图右侧空白处不出菜单,
+  必须按截图测图片实际位置;②消息流里的时间分隔条=mmui::ChatItemView(Name 即
+  "14:33"/"上午11:37"),用"图片上方最近时间标签"可精确识别每张图的归属消息;
+  ③同一标签下多张图按文档序对号;④复制前先清空剪贴板,防止读到上一张的旧数据
+  (InvokePattern 点击是空操作,要用真实鼠标点击);⑤滚轮惯性距离不定,大步滚后
+  要以"画面不再变化"判断到底;⑥群窗口标题会与浏览器/文档窗口撞名,find_group_window
+  已改为只认 Qt 窗口类(image_copier.py 同款修复)。
 - 采集器静默停摆排查:py-spy dump(venv 已装)看监听线程是否停在 sleep;
   collector.log 里"已刷新消息列表引用"应约 20 秒一条,停更=循环死了
 - Git Bash 传 Windows 路径参数要 MSYS_NO_PATHCONV=1;中文输出乱码是显示层问题,
