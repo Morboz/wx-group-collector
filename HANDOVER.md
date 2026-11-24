@@ -135,5 +135,5 @@ F:\dev\wx-group-collector\           仓库(git 已推到 github.com/Morboz/wx-g
 │   └── images\decoded\<yyyy-mm>\ 解码后的可看 PNG/JPG
 └── .venv\          uv 建;wx4py 源码已打补丁
 F:\dev\_probe\      调试探针(v1-v9 演化过程,uia_probe 最常用)
-C:\Users\xx\.agents\skills\wx-group-daily-report\  日报 skill(06:00 自动化所在环境)
+C:\Users\xx\.agents\skills\wx-group-daily-report\  日报 skill(06:00 自动化所在环境)(skill 真实目录;仓库 skills/wx-group-daily-report 是指向它的 junction,已纳入本仓库版本管理,改哪边等效)
 ```

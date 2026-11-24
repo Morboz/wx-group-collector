@@ -14,3 +14,4 @@ __pycache__/
 # wx4py 自带的运行时日志(写在仓库根目录)
 wx4py.log
 send_audit.log
+skills/wx-group-daily-report/state.json
